@@ -6,25 +6,49 @@
  var Movie = require('./models/movie');
  var User = require('./models/user');
  var _ = require('underscore');
+ var session = require('express-session');
+ var cookieParser = require('cookie-parser');
+ var mongoStore = require('connect-mongo')(session);
  var port = process.env.PORT || 3003;
  var app = express();
+ var url = "mongodb://localhost/movies";
  
  app.locals.moment = require('moment');
  //连接数据库
  mongoose.Promise = global.Promise;
- mongoose.connect("mongodb://localhost/movies");
+ mongoose.connect(url);
  //视图根目录
  app.set('views' , './views/pages');
  //设置引擎模板
  app.set('view engine', 'jade');
+ //cookie
+ app.use(cookieParser());
+ //session
+ app.use(session({
+	 secret : 'magic',
+	 store : new mongoStore({
+		 url : url,
+		 collection : 'sessions'
+	 })
+ }));
  //表单数据格式化
  app.use(bodyParser());
  //静态资源位置
  app.use(express.static(path.join(__dirname , 'public')));
  //监听端口
  app.listen(port);
+ //对于session预处理
+ app.use(function(req , res , next){
+	 var _user = req.session.user;
+	 if(_user){
+		 app.locals.user = _user;
+	 }
+	 return next();
+ });
  //开启路由
  app.get('/' , function(req , res){
+	 console.log(req.session.user);
+	 
 	 Movie.fetch(function(err , movies){
 		 if(err){
 			 console.log(arr);
@@ -191,11 +215,18 @@
 				 console.log(err);
 			 }
 			 if(isMatch){
+				 req.session.user = user;
 				 return res.redirect('/');
 			 }else{
 				 console.log('Password is not matched');
 			 }
 		 });
 	 });
+ });
+ //前台登出
+ app.get('/logout' , function(req , res){
+	 delete app.locals.user;
+	 delete req.session.user;
+	 res.redirect('/');
  });
  console.log('movie stared on 139.199.168.15:3003');
